@@ -1,3 +1,14 @@
+# 1.0.0-rc.2 — 2026-10-19
+
+- Detect apt, dnf/dnf5, yum, pacman, zypper or apk using distribution metadata
+  and installed commands; map OS dependency names to the selected backend.
+- Preview detected commands with `--plan`; override with `--package-manager`.
+- Add `--system-only` for OS dependencies without provider builds/Python 3.12.
+- Check optional tool package availability and skip installed tool commands;
+  report unavailable packages without silently claiming a complete setup.
+- Preserve fail-fast behavior and use the same detection in the interactive installer.
+- Add offline backend routing, detection, preview and failure tests; document limits.
+
 # 1.0.0-rc.1 — 2026-10-19
 
 - Add MIT license selected by the owner.

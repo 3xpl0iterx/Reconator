@@ -1,10 +1,10 @@
-# Reconator 1.0.0-rc.1
+# Reconator 1.0.0-rc.2
 
 Bash reconnaissance toolkit created by **3xpl0iter**. The existing `reconator` terminal shortcut still works. Requires Linux, Bash 5+, Python 3.8+ and the external tools used by the selected modules.
 
 ## Fresh installation
 
-Supported automatic setup: Kali Linux on x86_64, a regular (non-root) user, Bash 5+, and
+Automatic setup targets Linux x86_64, a regular (non-root) user, Bash 5+, and
 Python 3.12 with pip/venv support for the optional Python providers. Reconator's
 core uses system Python 3.8+. Install Python 3.12 separately if your distribution
 uses a different version; pass its absolute path below. Go may download the
@@ -24,8 +24,47 @@ ln -s "$PWD/reconator" "$HOME/.local/bin/reconator"
 
 The shortcut command deliberately refuses to overwrite an existing file. Add
 `$HOME/.local/bin` to your PATH if needed. The interactive `--install` route uses
-`RECONATOR_PROVIDER_PYTHON` or `python3.12`. On other Linux distributions, install
-the packages listed by `--plan` manually and omit `--system`.
+`RECONATOR_PROVIDER_PYTHON` or `python3.12`. OS dependencies use the detected
+package manager; the plan prints the distribution, backend, package names and
+commands. An explicit backend can be previewed even on another distribution:
+
+```bash
+python3 setup/install.py --plan --package-manager dnf
+# OS dependencies only; no Python 3.12 requirement or provider builds:
+python3 setup/install.py --system-only
+# Full setup, with an optional explicit manager override:
+python3 setup/install.py --system --package-manager dnf --python /path/to/python3.12
+```
+
+| Distribution family | Backend | Typical mapped packages |
+|---|---|---|
+| Debian / Ubuntu / Kali | apt (`apt-get`) | `golang-go`, `build-essential`, `dnsutils` |
+| Fedora / RHEL derivatives | dnf (including `dnf5`) or yum | `golang`, `gcc`, `bind-utils` |
+| Arch / Manjaro | pacman | `go`, `base-devel`, `bind` |
+| openSUSE / SUSE | zypper | `go`, `gcc`, `bind-utils` |
+| Alpine | apk | `go`, `build-base`, `bind-tools` |
+
+Detection uses `/etc/os-release` and available manager commands, preferring the
+host's distribution over a foreign package manager. Unknown/ambiguous systems
+require an explicit `--package-manager` or manual OS setup. `--plan` makes no
+changes or package queries. Installation uses sudo for OS packages. No additional
+repositories are enabled, and pacman does not run a standalone database refresh
+or automatic system upgrade; keep the host's repositories/system current yourself.
+
+The OS package manager handles already installed base packages; available Nikto,
+ffuf and theHarvester commands are skipped. Missing optional tool packages are
+queried in the configured repositories and installed when available. If a package
+is absent, setup reports the tool requiring manual installation. `--system-only`
+returns failure when such gaps remain; full setup still requires doctor to pass.
+Required-package installation or repository errors stop setup. Repository content
+varies by distribution/release, and older enterprise systems may need packages
+that are not in their enabled repositories.
+
+These six backends are covered by offline routing tests, not fresh installations
+of every distribution. Provider Python 3.12, native-library compatibility (including
+musl-based systems), external API keys and services remain separate requirements.
+Package-manager detection does not guarantee that every provider runs on every
+Linux distribution. Install OS dependencies manually and omit `--system` when needed.
 
 Amass 4.2.0 uses a SHA-256-verified official release binary to avoid compiling
 legacy dependencies with newer Go. Other Go clients use pinned source versions.
@@ -186,7 +225,7 @@ The menu opens directly without a VPN prompt, uses grouped sections, identifies 
 
 Run `bash scripts/check.sh` with Bash, Python 3 and ShellCheck installed. This is
 also the GitHub Actions check. It runs parser fixtures, all mocked CLI/provider
-integrations, actual terminal signal tests, installer contracts and an extracted
+integrations, actual terminal signal tests, installer contracts, all six package-manager backends and an extracted
 source-archive integration test. `python3 scripts/package.py /path/to/output`
 builds a source-only zip and SHA-256 checksum without installed tools, API keys
 or scan results. Verify the checksum before sharing.

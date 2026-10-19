@@ -14,6 +14,10 @@ import tempfile
 import urllib.request
 import zipfile
 
+# Keep import working when loaded by the offline tests as well as executed directly.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from packages import MANAGERS, install_system, package_plan
+
 ROOT = Path(__file__).resolve().parents[1]
 GO_TOOLS = {
     'subfinder': 'github.com/projectdiscovery/subfinder/v2/cmd/subfinder@v2.16.0',
@@ -30,9 +34,6 @@ PROVIDERS = {
     'OneForAll': ('https://github.com/shmilylty/OneForAll.git', 'e5255ae7009d12779d98be192b099c3c300dfd8a'),
     'Sudomy': ('https://github.com/screetsec/Sudomy.git', 'd7d9d416d20f7cc56640668d48de8394691afe30'),
 }
-APT = ['git', 'curl', 'jq', 'golang-go', 'build-essential', 'pkg-config',
-       'libpcap-dev', 'nmap', 'nikto', 'ffuf', 'whois', 'dnsutils',
-       'iputils-ping', 'python3', 'python3-venv', 'theharvester', 'parallel', 'bc']
 
 
 def run(args, **kwargs):
@@ -99,11 +100,15 @@ def install_amass(binary):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--plan', action='store_true', help='Show setup plan without changing files or downloading')
-    parser.add_argument('--system', action='store_true', help='Install Kali apt packages (requires sudo/root)')
+    parser.add_argument('--system', action='store_true', help='Install OS packages using the detected Linux package manager (uses sudo)')
+    parser.add_argument('--system-only', action='store_true', help='Install only OS dependencies; no provider Python environment or tool builds')
+    parser.add_argument('--package-manager', choices=['auto', *MANAGERS], default='auto', help='Override automatic package-manager detection; --plan can preview other managers')
     parser.add_argument('--python', default=os.environ.get('RECONATOR_PROVIDER_PYTHON', 'python3.12'), help='Python 3.12 interpreter for isolated provider environments')
     args = parser.parse_args()
+    args.system = args.system or args.system_only
+    plan = package_plan(args.package_manager) if args.plan or args.system else None
     if args.plan:
-        print(json.dumps({'platform': 'Kali Linux x86_64; Bash >=5; Python 3.12 for providers', 'apt': APT, 'amass': AMASS,
+        print(json.dumps({'platform': 'Linux x86_64; Bash >=5; Python 3.12 for providers', 'system': plan, 'amass': AMASS,
                           'go': GO_TOOLS, 'providers': PROVIDERS, 'python': args.python}, indent=2))
         return 0
     if sys.platform != 'linux':
@@ -111,18 +116,22 @@ def main():
     if platform.machine().lower() not in {'x86_64', 'amd64'}:
         raise RuntimeError('Automatic setup supports x86_64 only; configure external tools manually on other architectures.')
     if os.geteuid() == 0:
-        raise RuntimeError('Run as your regular user; --system uses sudo only for apt.')
+        raise RuntimeError('Run as your regular user; --system uses sudo only for OS packages.')
+    if args.system and (not plan.get('manager') or not plan.get('available')):
+        raise RuntimeError(plan.get('error', 'Selected package manager is not installed.'))
+    if args.system_only:
+        unavailable = install_system(plan, run)
+        print('OS dependency installation finished. Provider environments and tool builds were not installed.')
+        if unavailable:
+            raise RuntimeError('Tools still need manual installation: ' + ', '.join(unavailable))
+        return 0
     # Check the required interpreter before making any system/package changes.
     python = shutil.which(args.python)
     if not python:
         raise RuntimeError('Python 3.12 required. Install it separately and pass --python /path/to/python3.12 (or RECONATOR_PROVIDER_PYTHON).')
     run([python, '-c', 'import sys, venv; assert sys.version_info[:2] == (3,12), "Python 3.12 required"'])
     if args.system:
-        release = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
-        if release.get('ID', '').strip('"') != 'kali':
-            raise RuntimeError('--system supports Kali Linux only; install OS packages manually elsewhere.')
-        run(['sudo', 'apt-get', 'update'])
-        run(['sudo', 'apt-get', 'install', '-y', *APT])
+        install_system(plan, run)
     for tool in ['git', 'go']:
         if not shutil.which(tool):
             raise RuntimeError(f'{tool} missing; install prerequisites first (see README).')
@@ -162,6 +171,6 @@ def main():
 if __name__ == '__main__':
     try:
         sys.exit(main())
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         print(f'Setup failed: {error}', file=sys.stderr)
         sys.exit(1)
