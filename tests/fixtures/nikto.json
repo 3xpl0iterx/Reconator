@@ -1,0 +1,1 @@
+{"host":"example.com","vulnerabilities":[{"id":"fixture-1","msg":"Critical keyword alone is not severity evidence","url":"http://example.com/test"},{"id":"fixture-2","msg":"Explicitly classified fixture","severity":"medium","url":"http://example.com/other"}]}

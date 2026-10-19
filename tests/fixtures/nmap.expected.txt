@@ -1,0 +1,2 @@
+22/tcp ssh
+80/tcp http

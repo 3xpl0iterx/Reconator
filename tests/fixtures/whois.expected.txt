@@ -1,0 +1,5 @@
+Domain Name: example.com
+Registrar: Fixture Registrar
+Creation Date: 2000-01-01T00:00:00Z
+Name Server: ns.example.com
+DNSSEC: unsigned

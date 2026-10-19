@@ -1,0 +1,7 @@
+{"template-id": "fixture-critical", "info": {"name": "critical finding", "severity": "critical"}, "matched-at": "http://example.com/critical"}
+{"template-id": "fixture-high", "info": {"name": "high finding", "severity": "high"}, "matched-at": "http://example.com/high"}
+{"template-id": "fixture-medium", "info": {"name": "medium finding", "severity": "medium"}, "matched-at": "http://example.com/medium"}
+{"template-id": "fixture-low", "info": {"name": "low finding", "severity": "low"}, "matched-at": "http://example.com/low"}
+{"template-id": "fixture-info", "info": {"name": "info finding", "severity": "info"}, "matched-at": "http://example.com/info"}
+{"template-id": "fixture-unknown", "info": {"name": "unknown finding", "severity": "unknown"}, "matched-at": "http://example.com/unknown"}
+{"template-id": "fixture-high", "info": {"name": "high finding", "severity": "high"}, "matched-at": "http://example.com/high"}

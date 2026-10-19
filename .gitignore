@@ -1,0 +1,20 @@
+# Target data and generated output
+/results/*
+!/results/.gitkeep
+/work/
+*.tmp
+*.log
+__pycache__/
+*.py[cod]
+# Local tools, environments and credentials
+/tools/
+.venv/
+.env
+.env.*
+/config.local*
+*.api
+api-keys.y*ml
+slack.conf
+# Local editor/OS state
+.DS_Store
+*.swp

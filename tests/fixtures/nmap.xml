@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<nmaprun><host><ports>
+<port protocol="tcp" portid="22"><state state="open"/><service name="ssh"/></port>
+<port protocol="tcp" portid="80"><state state="open"/><service name="http"/><script id="http-server-header" output="Apache test banner"/></port>
+<port protocol="tcp" portid="135"><state state="filtered"/><service name="msrpc"/></port>
+</ports></host></nmaprun>

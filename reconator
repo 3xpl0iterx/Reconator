@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+launcher="$(readlink -f -- "${BASH_SOURCE[0]}")" || exit 1
+RECONATOR_HOME="$(cd -- "$(dirname -- "$launcher")" && pwd)" || exit 1
+exec bash "$RECONATOR_HOME/main.sh" "$@"
