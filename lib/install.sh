@@ -5,7 +5,7 @@ install_dependencies() {
     python3 "$RECONATOR_HOME/setup/install.py" --plan || return 1
     echo '[!] Setup builds pinned tools and installs isolated Python dependencies.'
     echo '[!] The detected package manager installs OS dependencies using sudo.'
-    echo '[!] Python 3.12 must already be available for the legacy providers.'
+    echo '[*] Setup detects a working Python 3.12, including existing pyenv installations.'
     local confirm
     read -r -p '[?] Install dependencies? [y/N]: ' confirm || return 1
     [[ "$confirm" =~ ^[Yy]$ ]] || { echo '[*] Installation cancelled.'; return 0; }

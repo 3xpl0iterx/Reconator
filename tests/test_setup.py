@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory() as temp:
     commands = []
     def command_mock(args, **kwargs):
         commands.append(list(map(str, args)))
-    with patch.object(installer, 'ROOT', directory), patch.object(sys, 'argv', ['install.py', '--python', '/fake/python']), patch.object(installer.os, 'geteuid', return_value=1000), patch.object(installer.shutil, 'which', return_value='/fake/python'), patch.object(installer, 'checkout', side_effect=checkout_mock), patch.object(installer, 'install_amass'), patch.object(installer, 'run', side_effect=command_mock):
+    with patch.object(installer, 'ROOT', directory), patch.object(sys, 'argv', ['install.py', '--python', '/fake/python']), patch.object(installer.os, 'geteuid', return_value=1000), patch.object(installer.shutil, 'which', return_value='/fake/python'), patch.object(installer, 'resolve_python', return_value='/fake/python'), patch.object(installer, 'checkout', side_effect=checkout_mock), patch.object(installer, 'install_amass'), patch.object(installer, 'run', side_effect=command_mock):
         assert installer.main() == 0
         assert len([cmd for cmd in commands if cmd[:2] == ['go', 'install']]) == len(installer.GO_TOOLS)
         assert commands[-1][-1] == 'doctor'
@@ -65,7 +65,7 @@ with tempfile.TemporaryDirectory() as temp:
         assert (checkout_dirs['Sudomy']/'sudomy.api').read_text() == 'USER_KEY="preserved"'
         assert (checkout_dirs['Sudomy']/'sudomy.api').stat().st_mode & 0o777 == 0o600
     # A failed tool install must stop before claiming completion and release the lock.
-    with patch.object(installer, 'ROOT', directory), patch.object(sys, 'argv', ['install.py', '--python', '/fake/python']), patch.object(installer.os, 'geteuid', return_value=1000), patch.object(installer.shutil, 'which', return_value='/fake/python'), patch.object(installer, 'run', side_effect=[None, subprocess.CalledProcessError(9, ['go'])]):
+    with patch.object(installer, 'ROOT', directory), patch.object(sys, 'argv', ['install.py', '--python', '/fake/python']), patch.object(installer.os, 'geteuid', return_value=1000), patch.object(installer.shutil, 'which', return_value='/fake/python'), patch.object(installer, 'resolve_python', return_value='/fake/python'), patch.object(installer, 'run', side_effect=subprocess.CalledProcessError(9, ['go'])):
         try:
             installer.main()
         except subprocess.CalledProcessError:

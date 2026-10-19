@@ -1,3 +1,11 @@
+# 1.0.0-rc.3 — 2026-10-19
+
+- Verify provider Python before using it; automatically bypass broken pyenv shims
+  by resolving existing provider venvs and installed Python 3.12 versions.
+- Respect explicit interpreter overrides and preserve pyenv global/local settings.
+- Add regression tests for shim failure, numeric version ordering, missing/wrong
+  interpreters, venv symlink resolution and probe timeouts.
+
 # 1.0.0-rc.2 — 2026-10-19
 
 - Detect apt, dnf/dnf5, yum, pacman, zypper or apk using distribution metadata

@@ -1,4 +1,4 @@
-# Reconator 1.0.0-rc.2
+# Reconator 1.0.0-rc.3
 
 Bash reconnaissance toolkit created by **3xpl0iter**. The existing `reconator` terminal shortcut still works. Requires Linux, Bash 5+, Python 3.8+ and the external tools used by the selected modules.
 
@@ -24,7 +24,12 @@ ln -s "$PWD/reconator" "$HOME/.local/bin/reconator"
 
 The shortcut command deliberately refuses to overwrite an existing file. Add
 `$HOME/.local/bin` to your PATH if needed. The interactive `--install` route uses
-`RECONATOR_PROVIDER_PYTHON` or `python3.12`. OS dependencies use the detected
+`RECONATOR_PROVIDER_PYTHON` when explicitly set, otherwise it verifies and selects
+a working Python 3.12 from the running interpreter, PATH, existing provider venvs,
+or installed pyenv versions (`PYENV_ROOT`, `pyenv root`, or `~/.pyenv`). Broken
+pyenv shims are skipped during automatic detection; no global/local pyenv version
+settings are changed. An explicit `--python`/environment override is validated and
+fails clearly instead of silently falling back. OS dependencies use the detected
 package manager; the plan prints the distribution, backend, package names and
 commands. An explicit backend can be previewed even on another distribution:
 

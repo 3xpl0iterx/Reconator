@@ -17,6 +17,7 @@ import zipfile
 # Keep import working when loaded by the offline tests as well as executed directly.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from packages import MANAGERS, install_system, package_plan
+from python_runtime import resolve_python
 
 ROOT = Path(__file__).resolve().parents[1]
 GO_TOOLS = {
@@ -103,13 +104,13 @@ def main():
     parser.add_argument('--system', action='store_true', help='Install OS packages using the detected Linux package manager (uses sudo)')
     parser.add_argument('--system-only', action='store_true', help='Install only OS dependencies; no provider Python environment or tool builds')
     parser.add_argument('--package-manager', choices=['auto', *MANAGERS], default='auto', help='Override automatic package-manager detection; --plan can preview other managers')
-    parser.add_argument('--python', default=os.environ.get('RECONATOR_PROVIDER_PYTHON', 'python3.12'), help='Python 3.12 interpreter for isolated provider environments')
+    parser.add_argument('--python', default=os.environ.get('RECONATOR_PROVIDER_PYTHON'), help='Python 3.12 interpreter; auto-detects working system/pyenv/provider interpreters by default')
     args = parser.parse_args()
     args.system = args.system or args.system_only
     plan = package_plan(args.package_manager) if args.plan or args.system else None
     if args.plan:
         print(json.dumps({'platform': 'Linux x86_64; Bash >=5; Python 3.12 for providers', 'system': plan, 'amass': AMASS,
-                          'go': GO_TOOLS, 'providers': PROVIDERS, 'python': args.python}, indent=2))
+                          'go': GO_TOOLS, 'providers': PROVIDERS, 'python': args.python or 'auto (verified Python 3.12)'}, indent=2))
         return 0
     if sys.platform != 'linux':
         raise RuntimeError('Automatic setup supports Linux only.')
@@ -126,10 +127,8 @@ def main():
             raise RuntimeError('Tools still need manual installation: ' + ', '.join(unavailable))
         return 0
     # Check the required interpreter before making any system/package changes.
-    python = shutil.which(args.python)
-    if not python:
-        raise RuntimeError('Python 3.12 required. Install it separately and pass --python /path/to/python3.12 (or RECONATOR_PROVIDER_PYTHON).')
-    run([python, '-c', 'import sys, venv; assert sys.version_info[:2] == (3,12), "Python 3.12 required"'])
+    python = resolve_python(ROOT, args.python)
+    print(f'Using verified provider Python: {python}')
     if args.system:
         install_system(plan, run)
     for tool in ['git', 'go']:
