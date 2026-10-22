@@ -1,6 +1,6 @@
 # Reconator 1.0.0-rc.3
 
-Bash reconnaissance toolkit created by **3xpl0iter**. The existing `reconator` terminal shortcut still works. Requires Linux, Bash 5+, Python 3.8+ and the external tools used by the selected modules.
+Bash reconnaissance toolkit created by **3xpl0iter**. Requires Linux, Bash 5+, Python 3.8+ and the external tools used by the selected modules.
 
 ## Fresh installation
 
