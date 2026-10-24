@@ -9,7 +9,7 @@ if (( BASH_VERSINFO[0] < 5 )); then
     echo 'Reconator requires Bash 5 or newer.' >&2
     exit 2
 fi
-VERSION='1.0.0-rc.3'
+VERSION='1.0.0-rc.4'
 RECONATOR_SOURCE="$(readlink -f -- "${BASH_SOURCE[0]}")" || exit 1
 RECONATOR_HOME="$(cd -- "$(dirname -- "$RECONATOR_SOURCE")" && pwd)" || exit 1
 RECONATOR_TOOL_BIN="${RECONATOR_TOOL_BIN-$RECONATOR_HOME/tools/bin}"

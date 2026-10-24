@@ -199,7 +199,14 @@ def build(scan):
         if file.exists():
             def text(name=name, file=file):
                 value = read(file).strip()
-                if value: add(name, {'whois': 'Domain registration', 'http': 'HTTP response headers', 'dns': 'DNS records'}[name], value)
+                title = {'whois': 'Domain registration', 'http': 'HTTP response headers', 'dns': 'DNS records'}[name]
+                if name == 'whois':
+                    try:
+                        ipaddress.ip_address(domain)
+                        title = 'IP registration'
+                    except ValueError:
+                        pass
+                if value: add(name, title, value)
             parse(name, text)
     if (scan / 'live.txt').exists():
         def live():

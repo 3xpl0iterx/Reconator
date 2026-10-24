@@ -1,3 +1,12 @@
+# 1.0.0-rc.4 — 2026-10-24
+
+- Accept validated IPv4/IPv6 inputs in every target-entry mode and add `--ip`.
+- Use reverse DNS and IP registration WHOIS for IP-only targets.
+- Record domain-only providers as skipped with reasons and per-tool reports;
+  retain domain-plus-active-IP Full Recon for combined domain/host assessments.
+- Update interactive prompts; IP-only Full Recon needs no second target.
+- Test both address families across modes, mixed input batches, scopes and menus.
+
 # 1.0.0-rc.3 — 2026-10-19
 
 - Verify provider Python before using it; automatically bypass broken pyenv shims

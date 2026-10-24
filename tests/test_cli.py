@@ -134,8 +134,52 @@ else: raise RuntimeError('Unmocked tool: '+name)
     run(['enum','-t',str(t/'batch.txt'),'--providers','subfinder','--jobs','2','--output',str(t/'batch')],env,t)
     run(['enum','-d','example.com','--providers','amass','--amass-ip','--output',str(t/'amass-v4')],{**env,'AMASS_V4':'1'},t)
     av4=next((t/'amass-v4/example.com').iterdir());assert '192.0.2.1' in (av4/'providers/amass/hosts-with-ip.txt').read_text()
+    # IP-only runs work in every target mode without passing IPs to domain providers.
+    providers={'subfinder','theharvester','oneforall','sudomy','amass','crobat'}
+    for ip in ['192.0.2.25','2001:db8::25']:
+        for mode in ['passive','active','full','enum','dns','http','directory','web']:
+            ipout=t/('ip-'+mode+('-v6' if ':' in ip else '-v4'))
+            before=calls.read_text()
+            result=run([mode,'--ip',ip,'--output',str(ipout)],env,t)
+            ipscan=next((ipout/ip).iterdir())
+            report=json.loads((ipscan/'reports/report.json').read_text())
+            assert report['domain']==ip and report['target']==ip
+            newcalls=calls.read_text()[len(before):]
+            assert not any(line.split(' ',1)[0] in providers for line in newcalls.splitlines()),newcalls
+            for provider in providers & report['phases'].keys():
+                assert report['phases'][provider]['status']=='skipped'
+                assert 'requires a root domain' in (ipscan/'logs'/(provider+'.log')).read_text()
+                assert (ipscan/'reports/tools'/provider/'report.json').exists()
+            if mode in ['full','dns']:
+                dnsargs=[json.loads(line.split(' ',1)[1]) for line in newcalls.splitlines() if line.startswith('dig ')]
+                assert len(dnsargs)==1 and '-x' in dnsargs[0] and ip in dnsargs[0]
+            if ':' in ip and mode in ['full','active','web']:
+                nmapargs=[json.loads(line.split(' ',1)[1]) for line in newcalls.splitlines() if line.startswith('nmap ')]
+                assert nmapargs and '-6' in nmapargs[-1]
+            if mode in ['full','passive']:
+                assert (ipscan/'whois.txt').read_text()==(project/'tests/fixtures/whois.txt').read_text()+'\n'
+    run(['directory','--ip','2001:db8::25','--directory','--wordlist',str(project/'tests/fixtures/whois.txt'),'--output',str(t/'ip-directory-enabled')],env,t)
+    ffufargs=json.loads([line.split(' ',1)[1] for line in calls.read_text().splitlines() if line.startswith('ffuf ')][-1])
+    assert ffufargs[ffufargs.index('-u')+1]=='https://[2001:db8::25]/FUZZ'
+    run(['full','--ip','example.com','--output',str(t/'badip')],env,t,2)
+    run(['full','--ip','999.1.2.3','--output',str(t/'badip')],env,t,2)
+    # Both IPs and domains in one batch retain independent provider eligibility.
+    (t/'mixed.txt').write_text('example.com\n192.0.2.25\n2001:db8::25\n')
+    run(['enum','-t',str(t/'mixed.txt'),'--providers','subfinder','--output',str(t/'mixed')],env,t)
+    # IP-only Full Recon must not ask for a second target.
+    result=run([],{**env,'RECONATOR_RESULTS':str(t/'menu-ip')},t,input='03\n[2001:db8::25]\nN\n\n00\n')
+    assert 'Enter active target' not in result.stdout
+    assert (t/'menu-ip/2001:db8::25').is_dir()
+    # A supplied domain plus an active IP still runs every provider.
+    run(['full','-d','example.com','--target','192.0.2.25','--output',str(t/'domain-ip')],env,t)
+    mixedscan=next((t/'domain-ip/example.com').iterdir())
+    mixedreport=json.loads((mixedscan/'reports/report.json').read_text())
+    assert all(mixedreport['phases'][p]['status']=='success' for p in providers)
+    (t/'v6scope').write_text('2001:db8::/32\n')
+    run(['dns','--ip','2001:db8::25','--scope',str(t/'v6scope'),'--output',str(t/'v6scopeout')],env,t)
+    run(['dns','--ip','192.0.2.25','--scope',str(t/'v6scope'),'--output',str(t/'v6scopeout')],env,t,2)
     run(['compare',str(web),str(web)],env,t);assert (web/'reports/comparison.json').exists()
     legacy=t/'example.com/legacy';legacy.mkdir(parents=True);old='www.example.com\nwww.example.com\n';(legacy/'subdomains.txt').write_text(old)
     run(['report',str(legacy)],env,t);assert (legacy/'subdomains.txt').read_text()==old
     for file in [project/'main.sh',project/'reconator',*(project/'lib').glob('*.sh')]: subprocess.run(['bash','-n',str(file)],check=True)
-    print('PASS: all providers, Full Recon integration, severity/dedup/provenance, HTTP fallback/404, manifests, resume/failure retries, validation/scope/exclusions/IPs, wordlists/no-data/timeouts, batch concurrency, comparison and legacy preservation. All network tools mocked.')
+    print('PASS: all providers, Full Recon integration, severity/dedup/provenance, HTTP fallback/404, manifests, resume/failure retries, validation/scope/exclusions, IPv4/IPv6 across all modes and menus, wordlists/no-data/timeouts, batch concurrency, comparison and legacy preservation. All network tools mocked.')

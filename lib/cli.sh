@@ -7,7 +7,8 @@ Reconator v$VERSION — by 3xpl0iter
 Usage: reconator [scan|passive|active|full|enum|dns|http|directory|web] [options]
 No arguments: interactive menu.
   -m, --mode MODE          passive, active, full, subdomains, dns, http, directory, web
-  -d, --domain HOST        Domain/IP/HTTP URL; provider modes require a domain
+  -d, --domain HOST        Domain/IP/HTTP URL in any scan mode
+  --ip ADDRESS            IPv4/IPv6 target; domain-only providers are skipped
   -t, --targets FILE       One target per line, duplicates removed
   --target HOST           Active host for a single root domain (Full Recon)
   --providers LIST        Comma-separated providers, or all
@@ -31,6 +32,7 @@ No arguments: interactive menu.
   --amass-active / --amass-ip
 Commands: doctor, history, report SCAN_DIR, compare SCAN_A SCAN_B, --install
   -h, --help / -v, --version
+IP DNS mode uses reverse DNS. Domain-only providers are skipped for IP targets.
 Full Recon runs all selected providers, host checks and reports. Providers default
 to all in full/subdomains mode; passive defaults to subfinder,theharvester,crobat,sudomy.
 OneForAll/Amass may perform DNS checks. Newly discovered assets are not scanned.
@@ -104,10 +106,16 @@ cli_phase() {
     active_phase="$name"
     record_phase "$name" running 0 "logs/$name.log"
     export RECONATOR_HOME scan_dir root_domain target wordlist cli_nmap_mode cli_severity cli_rate cli_threads cli_timeout cli_http_timeout cli_directory_allowed cli_ports AMASS_ACTIVE AMASS_IP
-    python3 "$RECONATOR_HOME/lib/run.py" "$cli_timeout" bash "$RECONATOR_HOME/lib/phase.sh" "$@" > "$scan_dir/logs/$name.log" 2>&1 &
-    active_pid=$!
-    wait "$active_pid" || rc=$?
-    active_pid=''
+    if [[ "$name" =~ ^(subfinder|theharvester|oneforall|sudomy|amass|crobat)$ ]] && is_ip "$root_domain"; then
+        echo "$name requires a root domain; skipped for IP-only target $root_domain. Use Full Recon with -d DOMAIN --target IP for domain enumeration plus IP host checks." > "$scan_dir/logs/$name.log"
+        echo "[*] $name requires a domain; skipping IP-only enumeration."
+        rc=4
+    else
+        python3 "$RECONATOR_HOME/lib/run.py" "$cli_timeout" bash "$RECONATOR_HOME/lib/phase.sh" "$@" > "$scan_dir/logs/$name.log" 2>&1 &
+        active_pid=$!
+        wait "$active_pid" || rc=$?
+        active_pid=''
+    fi
     if (( rc == 0 )); then
         python3 "$RECONATOR_HOME/lib/report.py" validate "$scan_dir" "$name" >> "$scan_dir/logs/$name.log" 2>&1 || rc=$?
     fi
@@ -203,17 +211,17 @@ reconator_cli() {
     esac
     if [[ -n "$mode_alias" && $# == 0 ]]; then menu_scan "$mode_alias"; return; fi
     local cli_mode="${mode_alias:-passive}" cli_providers='' cli_resume=false cli_resume_dir=''
-    local cli_output="${RECONATOR_RESULTS:-$RECONATOR_HOME/results}" cli_domain='' cli_file='' cli_target='' cli_nmap_mode=default
+    local cli_output="${RECONATOR_RESULTS:-$RECONATOR_HOME/results}" cli_domain='' cli_file='' cli_target='' cli_nmap_mode=default cli_ip_input=false
     local cli_ports=1-300 cli_severity=all cli_timeout=300 cli_http_timeout=10 cli_rate=2 cli_threads=1 cli_jobs=1 cli_directory_allowed=false
     local AMASS_ACTIVE=false AMASS_IP=false profile=balanced scope='' exclude='' only_mode='' rc=0
     local wordlist="${RECONATOR_WORDLIST:-/usr/share/wordlists/dirb/big.txt}"
     while (( $# )); do
         case "$1" in
             -h|--help) cli_help; return ;;
-            -m|--mode|-d|--domain|-t|--targets|--target|--providers|--output|--wordlist|--severity|--timeout|--http-timeout|--rate|--threads|--ports|--jobs|--scope|--exclude|--profile|--resume-dir)
+            -m|--mode|-d|--domain|--ip|-t|--targets|--target|--providers|--output|--wordlist|--severity|--timeout|--http-timeout|--rate|--threads|--ports|--jobs|--scope|--exclude|--profile|--resume-dir)
                 [[ $# -ge 2 && -n "$2" ]] || { echo "[-] Missing value for $1"; return 2; }
                 case "$1" in
-                    -m|--mode) cli_mode="$2" ;; -d|--domain) cli_domain="$2" ;; -t|--targets) cli_file="$2" ;;
+                    -m|--mode) cli_mode="$2" ;; -d|--domain) cli_domain="$2" ;; --ip) cli_domain="$2"; cli_ip_input=true ;; -t|--targets) cli_file="$2" ;;
                     --target) cli_target="$2" ;; --providers) cli_providers="$2" ;; --output) cli_output="$2" ;;
                     --wordlist) wordlist="$2" ;; --severity) cli_severity="$2" ;; --timeout) cli_timeout="$2" ;;
                     --http-timeout) cli_http_timeout="$2" ;; --rate) cli_rate="$2" ;; --threads) cli_threads="$2" ;; --ports) cli_ports="$2" ;;
@@ -257,6 +265,10 @@ PYPORTS
     done
     (( cli_jobs <= 8 && cli_threads <= 100 && cli_rate <= 1000 && cli_timeout <= 86400 && cli_http_timeout <= 300 )) || { echo '[-] Requested limits are out of range'; return 2; }
     [[ -n "$cli_domain" && -z "$cli_file" || -z "$cli_domain" && -n "$cli_file" ]] || { echo '[-] Choose -d HOST or -t FILE'; return 2; }
+    if [[ "$cli_ip_input" == true ]]; then
+        cli_domain="$(normalize_target "$cli_domain")" || return 2
+        is_ip "$cli_domain" || { echo '[-] --ip requires a valid IPv4 or IPv6 address'; return 2; }
+    fi
     if [[ -n "$cli_target" ]]; then
         [[ -n "$cli_domain" && "$cli_mode" == full ]] || { echo '[-] --target requires a single Full Recon root domain'; return 2; }
         cli_target="$(normalize_target "$cli_target")" || return 2
@@ -279,7 +291,7 @@ PYPORTS
     mapfile -t domains <<< "$filtered"
     local domain pid
     for domain in "${domains[@]}"; do
-        case "$cli_mode" in passive|full|subdomains|dns) root_domain="$domain"; validate_root_domain || return 2 ;; esac
+        case "$cli_mode" in passive|full|subdomains|dns) root_domain="$domain"; is_ip "$domain" || validate_root_domain || return 2 ;; esac
     done
     if [[ -n "$cli_target" ]]; then
         printf '%s\n' "$cli_target" > "$cli_output/.target-scope-$$.tmp"

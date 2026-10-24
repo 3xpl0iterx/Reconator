@@ -1,4 +1,4 @@
-# Reconator 1.0.0-rc.3
+# Reconator 1.0.0-rc.4
 
 Bash reconnaissance toolkit created by **3xpl0iter**. Requires Linux, Bash 5+, Python 3.8+ and the external tools used by the selected modules.
 
@@ -94,7 +94,7 @@ They are not bundled or relicensed by the source archive.
 
 Run `reconator` to open the persistent menu immediately; VPN handling has been removed. Actions pause before returning to the menu; `00` exits. About displays the version.
 
-**03 Full Recon now uses the same pipeline as the CLI:** ping, Nmap, HTTP inspection, WHOIS, DNS, all six providers, httpx, Nuclei, Nikto and optional directory discovery. It automatically generates reports and prints their locations. Enter the root domain and the separate active host when prompted. Directory discovery retains its authorization prompt.
+**03 Full Recon now uses the same pipeline as the CLI:** ping, Nmap, HTTP inspection, WHOIS, DNS, all six providers, httpx, Nuclei, Nikto and optional directory discovery. It automatically generates reports and prints their locations. Enter a domain or IP. For a domain, enter the separate active host/IP when prompted; an IP-only scan uses that address directly without a second host prompt. Directory discovery retains its authorization prompt.
 
 **04 Public Subdomains** runs provider enumeration without WHOIS or the active host modules. **07 Analyze Results** regenerates reports; **08 Previous Scans** lists saved runs. **11** selects providers; **12** runs offline doctor. Menu labels and dispatch share one registry.
 
@@ -106,6 +106,9 @@ Ctrl+C once interrupts the current action and asks you to press Ctrl+C again to 
 reconator --help
 reconator doctor
 reconator full -d example.com --target www.example.com
+reconator full --ip 192.0.2.10
+reconator dns --ip 2001:db8::10
+reconator full -d example.com --target 192.0.2.10
 reconator enum -d example.com --providers all
 reconator passive -d example.com --providers subfinder,theharvester
 reconator -m http -d https://example.com
@@ -121,7 +124,7 @@ reconator compare /path/to/older-scan /path/to/newer-scan
 
 Bare mode aliases such as `reconator passive` prompt for input. No arguments open the full menu.
 
-Targets are validated before any scan starts. Target files accept one domain/IP/HTTP URL per line, blank lines and `#` comments; duplicates are removed. Provider/DNS modes require a root domain. Active modes accept IPv4, IPv6, hostnames and HTTP URLs. Custom URL ports are rejected rather than silently discarded.
+Targets are validated before any scan starts. Target files accept one domain/IP/HTTP URL per line, blank lines and `#` comments; duplicates are removed. Every target mode accepts IPv4/IPv6 as well as domains. IP-only DNS mode uses reverse DNS (`dig -x`); WHOIS retains the IP registration response. Domain-only providers are recorded as skipped, with logs and per-tool reports, rather than being called with an IP. No reverse-DNS hostname is automatically scanned or passed to providers. Active modes accept IPv4, IPv6, hostnames and HTTP URLs. Custom URL ports are rejected rather than silently discarded.
 
 Scope/exclusion files contain domains or CIDRs. Scope rules apply to the supplied root and active host; excluded targets are omitted. Discovered subdomains do **not** automatically become active scan targets. Use tools within your assessment scope.
 
@@ -242,3 +245,19 @@ provider checks and offline integration tests do not substitute for that check.
 Live API-backed providers also depend on the user's keys and working upstream
 services. Crobat's historical endpoint remains unavailable; configure a compatible
 endpoint or omit that provider explicitly. No stable release has been published.
+
+## IP targets
+
+Use `--ip ADDRESS` or `-d ADDRESS` with passive, active, full, enum, DNS, HTTP,
+directory or web modes. Target files may mix domains, IPv4 and IPv6. IPs are
+validated and checked against scope/CIDR exclusions before any module starts.
+IPv6 HTTP URLs use brackets and Nmap receives its IPv6 flag. Directory testing
+still requires consent and a readable wordlist.
+
+IP-only passive mode collects IP WHOIS; its domain-enumeration providers are
+skipped. IP-only enum/provider mode produces explicit skipped-provider reports;
+it cannot discover subdomains from an address alone. To enumerate a known domain
+and inspect an IP, use `reconator full -d example.com --target 192.0.2.10`.
+Direct-IP web checks may reach a default virtual host or a different certificate
+than domain-based checks. Missing PTR records or skipped providers do not imply
+that no domains or vulnerabilities exist.

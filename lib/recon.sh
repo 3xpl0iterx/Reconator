@@ -22,6 +22,11 @@ parse_whois() {
 cli_whois() {
     command -v whois >/dev/null 2>&1 || return 127
     LC_ALL=C whois "$root_domain" > "$scan_dir/whois-raw.txt" || return $?
+    if is_ip "$root_domain"; then
+        cp -- "$scan_dir/whois-raw.txt" "$scan_dir/whois.txt" || return 1
+        [[ -s "$scan_dir/whois.txt" ]] || return 3
+        return 0
+    fi
     parse_whois "$scan_dir/whois-raw.txt" > "$scan_dir/whois.txt"
     local rc=$?
     (( rc == 1 )) && return 3
@@ -59,6 +64,10 @@ cli_dns() {
     command -v dig >/dev/null 2>&1 || return 127
     local type rc=0
     : > "$scan_dir/dns.txt"
+    if is_ip "$root_domain"; then
+        LC_ALL=C dig +time=5 +tries=1 -x "$root_domain" > "$scan_dir/dns.txt"
+        return $?
+    fi
     for type in A AAAA MX NS TXT SOA; do
         echo "=== $type ===" >> "$scan_dir/dns.txt"
         LC_ALL=C dig +time=5 +tries=1 "$root_domain" "$type" >> "$scan_dir/dns.txt" || rc=$?
@@ -68,7 +77,9 @@ cli_dns() {
 cli_httpx() {
     command -v httpx >/dev/null 2>&1 || return 127
     httpx -h 2>&1 | grep -qi probe || return 2
-    printf '%s\n' "$target" | httpx -silent -rate-limit "$cli_rate" -threads "$cli_threads" -o "$scan_dir/live.txt"
+    local host="$target"
+    is_ip "$host" && [[ "$host" == *:* ]] && host="[$host]"
+    printf '%s\n' "$host" | httpx -silent -rate-limit "$cli_rate" -threads "$cli_threads" -o "$scan_dir/live.txt"
 }
 scan_url() {
     if [[ -s "$scan_dir/base-url.txt" ]]; then head -n 1 "$scan_dir/base-url.txt"

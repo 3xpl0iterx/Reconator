@@ -23,7 +23,7 @@ menu() {
         esac
         [[ -n "$group" ]] && printf '\n  %b%s%b\n' "$BOLD" "$group" "$RESET"
         printf '  %b[%s]%b %-35s' "$GREEN" "$id" "$RESET" "${MENU_LABEL[$id]}"
-        [[ "$id" == 03 ]] && printf '\n       All 6 providers, host/web checks and per-tool reports.'
+        [[ "$id" == 03 ]] && printf '\n       Host/web checks, providers for domains, and per-tool reports.'
         declare -F "${MENU_ACTION[$id]}" >/dev/null || printf ' (Coming soon)'
         printf '\n'
     done
@@ -40,10 +40,11 @@ menu_scan() {
     local mode="$1" domain selected_target answer
     local -a args=()
     if [[ "$mode" == full || "$mode" == passive || "$mode" == subdomains || "$mode" == dns ]]; then
-        read -r -p '[?] Enter root domain: ' domain || return 1
+        read -r -p '[?] Enter root domain or IP address: ' domain || return 1
     else read -r -p '[?] Enter target (host/IP/URL): ' domain || return 1; fi
+    domain="$(normalize_target "$domain")" || return 2
     args=(scan -d "$domain" --mode "$mode")
-    if [[ "$mode" == full ]]; then
+    if [[ "$mode" == full ]] && ! is_ip "$domain"; then
         read -r -p '[?] Enter active target: ' selected_target || return 1
         args+=(--target "$selected_target")
     fi
@@ -63,7 +64,7 @@ menu_directory() { menu_scan directory; }
 menu_providers() {
     local providers domain
     read -r -p '[?] Providers (all or comma-separated): ' providers || return 1
-    read -r -p '[?] Enter root domain: ' domain || return 1
+    read -r -p '[?] Enter root domain or IP address: ' domain || return 1
     reconator_cli scan -d "$domain" --mode subdomains --providers "$providers"
 }
 menu_about() { printf '\nReconator v%s\nAutomated Reconnaissance Toolkit\nCreated by 3xpl0iter\n' "$VERSION"; }
