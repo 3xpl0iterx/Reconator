@@ -38,6 +38,18 @@ source "$RECONATOR_HOME/lib/menu.sh" || exit 1
 # shellcheck source=lib/install.sh
 source "$RECONATOR_HOME/lib/install.sh" || exit 1
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then return 0; fi
+# Re-exec once so subprocesses inherit proxychains' preload environment.
+proxy_requested=false
+proxy_args=()
+for proxy_arg in "$@"; do
+    case "$proxy_arg" in --proxychains4) proxy_requested=true ;; *) proxy_args+=("$proxy_arg") ;; esac
+done
+if [[ "$proxy_requested" == true ]]; then
+    command -v proxychains4 >/dev/null 2>&1 || { echo '[-] proxychains4 is not installed' >&2; exit 127; }
+    echo '[!] Proxychains covers supported dynamically linked TCP clients only; raw packets and some tools can bypass it.' >&2
+    export RECONATOR_PROXY_MODE=true
+    exec proxychains4 bash "$RECONATOR_SOURCE" "${proxy_args[@]}" 2> >(python3 -u "$RECONATOR_HOME/lib/proxy_stderr.py")
+fi
 reconator_install_signal_handler
 if (( $# )); then
     if [[ "$1" == --install ]]; then install_dependencies; result=$?;

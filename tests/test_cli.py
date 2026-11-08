@@ -182,4 +182,19 @@ else: raise RuntimeError('Unmocked tool: '+name)
     legacy=t/'example.com/legacy';legacy.mkdir(parents=True);old='www.example.com\nwww.example.com\n';(legacy/'subdomains.txt').write_text(old)
     run(['report',str(legacy)],env,t);assert (legacy/'subdomains.txt').read_text()==old
     for file in [project/'main.sh',project/'reconator',*(project/'lib').glob('*.sh')]: subprocess.run(['bash','-n',str(file)],check=True)
+    run(['manual','-d','example.com','--modules','whois,http,http','--output',str(t/'manual')],env,t)
+    manualscan=next((t/'manual/example.com').iterdir())
+    manualreport=json.loads((manualscan/'reports/report.json').read_text())
+    assert set(manualreport['phases']) == {'http','whois'}
+    bundle=(manualscan/'reports/combined-report.txt').read_text()
+    assert 'RAW MODULE EVIDENCE' in bundle and 'whois-raw.txt' in bundle and 'http.txt' in bundle
+    run(['manual','-d','example.com','--modules','http,invalid','--output',str(t/'badmanual')],env,t,2)
+    run(['http','-d','example.com','--modules','http'],env,t,2)
+    run([],{**env,'RECONATOR_RESULTS':str(t/'menu-manual')},t,input='13\nhttp,whois\nexample.com\n\n00\n')
+    wrapper=Path(env['RECONATOR_TOOL_BIN'])/'proxychains4'
+    wrapper.write_text('#!/bin/bash\necho "[proxychains] DLL init: test" >&2\necho "[proxychains] Strict chain ... 127.0.0.1:9050 ... OK" >&2\necho "[proxychains] connection refused" >&2\nexec "$@"\n')
+    wrapper.chmod(0o755)
+    proxied=run(['--proxychains4','--version'],env,t)
+    assert 'DLL init:' not in proxied.stderr and 'Strict chain' not in proxied.stderr and 'connection refused' in proxied.stderr
+    run(['--proxychains4','manual','-d','example.com','--modules','http','--output',str(t/'proxy-manual')],env,t)
     print('PASS: all providers, Full Recon integration, severity/dedup/provenance, HTTP fallback/404, manifests, resume/failure retries, validation/scope/exclusions, IPv4/IPv6 across all modes and menus, wordlists/no-data/timeouts, batch concurrency, comparison and legacy preservation. All network tools mocked.')

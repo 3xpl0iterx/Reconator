@@ -4,9 +4,11 @@
 cli_help() {
     cat <<HELP
 Reconator v$VERSION — by 3xpl0iter
-Usage: reconator [scan|passive|active|full|enum|dns|http|directory|web] [options]
+Usage: reconator [scan|passive|active|full|enum|dns|http|directory|web|manual] [options]
 No arguments: interactive menu.
-  -m, --mode MODE          passive, active, full, subdomains, dns, http, directory, web
+  -m, --mode MODE          passive, active, full, subdomains, dns, http, directory, web, manual
+  --modules LIST          Manual mode: comma-separated module names, or all
+  --proxychains4          Launch under proxychains4
   -d, --domain HOST        Domain/IP/HTTP URL in any scan mode
   --ip ADDRESS            IPv4/IPv6 target; domain-only providers are skipped
   -t, --targets FILE       One target per line, duplicates removed
@@ -125,6 +127,9 @@ cli_phase() {
     record_phase "$name" "$status" "$rc" "$(phase_evidence "$name")"
     active_phase=''
     ui_progress "$phase_number" "$phase_total" "$name" "$status"
+    if [[ "${RECONATOR_PROXY_MODE:-false}" == true && "$status" != success && "$status" != no_data ]]; then
+        LC_ALL=C grep -Ei 'proxychains.*(error|denied|timeout|refused|failed|invalid)|could not connect|connection refused' "$scan_dir/logs/$name.log" >&2 || true
+    fi
     if [[ "$name" == http ]]; then
         LC_ALL=C grep -E 'HTTPS unavailable;|HTTP inspection (succeeded|unavailable)' "$scan_dir/logs/http.log" || true
     fi
@@ -145,7 +150,7 @@ cli_scan_domain() {
     trap 'exit 130' INT
     trap 'exit 143' TERM
     mkdir -p "$scan_dir/state" "$scan_dir/logs" || return 1
-    config_digest="$(printf '%s\n' "$root_domain" "$target" "$cli_mode" "$cli_providers" "$cli_nmap_mode" "$cli_severity" "$cli_ports" "$cli_rate" "$cli_threads" "$cli_timeout" "$cli_http_timeout" "$wordlist" "$cli_directory_allowed" "${HARVESTER_SOURCES:-crtsh}" "${HARVESTER_LIMIT:-500}" "${ONEFORALL_SCRIPT:-}" "${ONEFORALL_PYTHON:-}" "${SUDOMY_SCRIPT:-}" "${AMASS_BIN:-amass}" "$AMASS_ACTIVE" "$AMASS_IP" "${CROBAT_API_BASE:-https://sonar.omnisint.io}"; sha256sum "$RECONATOR_HOME/main.sh" "$RECONATOR_HOME/lib/"*.sh "$RECONATOR_HOME/lib/"*.py)"
+    config_digest="$(printf '%s\n' "$root_domain" "$target" "$cli_mode" "$cli_modules" "${RECONATOR_PROXY_MODE:-false}" "$cli_providers" "$cli_nmap_mode" "$cli_severity" "$cli_ports" "$cli_rate" "$cli_threads" "$cli_timeout" "$cli_http_timeout" "$wordlist" "$cli_directory_allowed" "${HARVESTER_SOURCES:-crtsh}" "${HARVESTER_LIMIT:-500}" "${ONEFORALL_SCRIPT:-}" "${ONEFORALL_PYTHON:-}" "${SUDOMY_SCRIPT:-}" "${AMASS_BIN:-amass}" "$AMASS_ACTIVE" "$AMASS_IP" "${CROBAT_API_BASE:-https://sonar.omnisint.io}"; sha256sum "$RECONATOR_HOME/main.sh" "$RECONATOR_HOME/lib/"*.sh "$RECONATOR_HOME/lib/"*.py)"
     config_digest="$(printf '%s' "$config_digest" | sha256sum)"
     if [[ -n "$cli_resume_dir" ]]; then
         [[ -f "$scan_dir/domain.txt" && -f "$scan_dir/target.txt" && -f "$scan_dir/mode.txt" ]] || { echo '[-] Not a current Reconator scan'; return 2; }
@@ -175,6 +180,7 @@ cli_scan_domain() {
         subdomains) phases=("${selected[@]}") ;;
         active) phases=(ping nmap http) ;;
         full) phases=(ping nmap http whois dns "${selected[@]}" httpx nuclei nikto directory) ;;
+        manual) IFS=',' read -r -a phases <<< "$cli_modules" ;;
         web) phases=(http httpx nmap nuclei nikto) ;;
         *) phases=("$cli_mode") ;;
     esac
@@ -206,10 +212,14 @@ reconator_cli() {
         report) [[ $# == 2 && -d "$2" ]] || { echo 'Usage: reconator report SCAN_DIR'; return 2; }; cli_report "$2"; return ;;
         compare) [[ $# == 3 ]] || { echo 'Usage: reconator compare SCAN_A SCAN_B'; return 2; }; python3 "$RECONATOR_HOME/lib/report.py" compare "$2" "$3"; return ;;
         scan) shift ;;
-        passive|active|full|enum|dns|http|directory|web) mode_alias="$1"; [[ "$mode_alias" == enum ]] && mode_alias=subdomains; shift ;;
+        passive|active|full|enum|dns|http|directory|web|manual) mode_alias="$1"; [[ "$mode_alias" == enum ]] && mode_alias=subdomains; shift ;;
         -*) ;; *) echo "[-] Unknown command: $1"; return 2 ;;
     esac
-    if [[ -n "$mode_alias" && $# == 0 ]]; then menu_scan "$mode_alias"; return; fi
+    if [[ -n "$mode_alias" && $# == 0 ]]; then
+        if [[ "$mode_alias" == manual ]]; then menu_manual; else menu_scan "$mode_alias"; fi
+        return
+    fi
+    local cli_modules=''
     local cli_mode="${mode_alias:-passive}" cli_providers='' cli_resume=false cli_resume_dir=''
     local cli_output="${RECONATOR_RESULTS:-$RECONATOR_HOME/results}" cli_domain='' cli_file='' cli_target='' cli_nmap_mode=default cli_ip_input=false
     local cli_ports=1-300 cli_severity=all cli_timeout=300 cli_http_timeout=10 cli_rate=2 cli_threads=1 cli_jobs=1 cli_directory_allowed=false
@@ -218,11 +228,11 @@ reconator_cli() {
     while (( $# )); do
         case "$1" in
             -h|--help) cli_help; return ;;
-            -m|--mode|-d|--domain|--ip|-t|--targets|--target|--providers|--output|--wordlist|--severity|--timeout|--http-timeout|--rate|--threads|--ports|--jobs|--scope|--exclude|--profile|--resume-dir)
+            -m|--mode|-d|--domain|--ip|-t|--targets|--target|--providers|--modules|--output|--wordlist|--severity|--timeout|--http-timeout|--rate|--threads|--ports|--jobs|--scope|--exclude|--profile|--resume-dir)
                 [[ $# -ge 2 && -n "$2" ]] || { echo "[-] Missing value for $1"; return 2; }
                 case "$1" in
                     -m|--mode) cli_mode="$2" ;; -d|--domain) cli_domain="$2" ;; --ip) cli_domain="$2"; cli_ip_input=true ;; -t|--targets) cli_file="$2" ;;
-                    --target) cli_target="$2" ;; --providers) cli_providers="$2" ;; --output) cli_output="$2" ;;
+                    --modules) cli_modules="$2" ;; --target) cli_target="$2" ;; --providers) cli_providers="$2" ;; --output) cli_output="$2" ;;
                     --wordlist) wordlist="$2" ;; --severity) cli_severity="$2" ;; --timeout) cli_timeout="$2" ;;
                     --http-timeout) cli_http_timeout="$2" ;; --rate) cli_rate="$2" ;; --threads) cli_threads="$2" ;; --ports) cli_ports="$2" ;;
                     --jobs) cli_jobs="$2" ;; --scope) scope="$2" ;; --exclude) exclude="$2" ;;
@@ -242,7 +252,12 @@ reconator_cli() {
         [[ "$cli_mode" == passive && -z "$mode_alias" ]] || { echo '[-] Conflicting mode options'; return 2; }; cli_mode="$only_mode"
     fi
     case "$profile" in quick) [[ "$cli_nmap_mode" == default ]] && cli_nmap_mode=fast ;; balanced) ;; thorough) [[ "$cli_nmap_mode" == default ]] && cli_nmap_mode=aggressive ;; *) echo '[-] Invalid profile'; return 2 ;; esac
-    case "$cli_mode" in passive|active|full|subdomains|dns|http|directory|web|nmap|nuclei|nikto) ;; *) echo '[-] Invalid mode'; return 2 ;; esac
+    case "$cli_mode" in passive|active|full|subdomains|dns|http|directory|web|nmap|nuclei|nikto|manual) ;; *) echo '[-] Invalid mode'; return 2 ;; esac
+    if [[ "$cli_mode" == manual ]]; then
+        cli_modules="$(manual_modules "$cli_modules")" || return 2
+    elif [[ -n "$cli_modules" ]]; then
+        echo '[-] --modules requires --mode manual'; return 2
+    fi
     if [[ -z "$cli_providers" ]]; then
         if [[ "$cli_mode" == passive ]]; then cli_providers=subfinder,theharvester,crobat,sudomy;
         else cli_providers=all; fi
@@ -270,7 +285,7 @@ PYPORTS
         is_ip "$cli_domain" || { echo '[-] --ip requires a valid IPv4 or IPv6 address'; return 2; }
     fi
     if [[ -n "$cli_target" ]]; then
-        [[ -n "$cli_domain" && "$cli_mode" == full ]] || { echo '[-] --target requires a single Full Recon root domain'; return 2; }
+        [[ -n "$cli_domain" && ( "$cli_mode" == full || "$cli_mode" == manual ) ]] || { echo '[-] --target requires a single Full/Manual Recon root domain'; return 2; }
         cli_target="$(normalize_target "$cli_target")" || return 2
     fi
     mkdir -p "$cli_output" || return 1

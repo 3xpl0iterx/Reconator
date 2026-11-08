@@ -6,6 +6,7 @@ import hashlib
 import ipaddress
 import json
 import re
+import os
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -262,6 +263,34 @@ def build(scan):
     lines += ['## Reports by tool', ''] + tool_links + ['']
     if warnings: lines += ['## Parser warnings', ''] + ['- ' + escape(w) for w in warnings]
     state.atomic(reports / 'report.md', '\n'.join(lines) + '\n')
+    # Stream one complete bundle, including partial/failed module evidence.
+    combined = reports / 'combined-report.txt'
+    temporary = reports / f'combined-report.txt.{os.getpid()}.tmp'
+    try:
+        with temporary.open('w') as output:
+            output.write('RECONATOR — COMBINED REPORT\n\n')
+            output.write(json.dumps(summary, indent=2) + '\n\nRAW MODULE EVIDENCE\n')
+            seen = set()
+            for module in statuses.values():
+                for relative in module['evidence'].split(','):
+                    evidence = (scan / relative).resolve()
+                    if evidence in seen or not evidence.is_relative_to(scan.resolve()) or not evidence.is_file():
+                        continue
+                    seen.add(evidence)
+                    output.write(f'\n========== {relative} ==========\n')
+                    with evidence.open('rb') as raw:
+                        sample = raw.read(8192)
+                        if b'\x00' in sample:
+                            output.write('[Binary evidence retained in original file]\n')
+                            continue
+                    with evidence.open(errors='replace') as raw:
+                        for chunk in iter(lambda: raw.read(65536), ''):
+                            output.write(chunk)
+                    output.write('\n')
+        temporary.replace(combined)
+    finally:
+        temporary.unlink(missing_ok=True)
+    print(f'[+] Combined report: {combined}')
     print(f'[+] Scan {overall}: {len(rows)} unique assets; {len(findings)} observations/findings')
     print('[+] Severity: ' + ', '.join(f'{name}={count}' for name, count in counts.items()))
     print(f'[+] Reports: {reports}/report.md, report.json, findings.csv')

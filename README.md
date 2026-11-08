@@ -261,3 +261,20 @@ and inspect an IP, use `reconator full -d example.com --target 192.0.2.10`.
 Direct-IP web checks may reach a default virtual host or a different certificate
 than domain-based checks. Missing PTR records or skipped providers do not imply
 that no domains or vulnerabilities exist.
+
+### Manual module selection and proxychains
+
+Choose **[13] Manual Recon** in the menu, or select modules directly:
+
+```bash
+reconator manual -d example.com --modules http,whois,dns,nuclei
+reconator manual --ip 192.0.2.10 --modules nmap,http,nikto
+reconator --proxychains4
+reconator --proxychains4 manual -d example.com --modules http,whois
+```
+
+Modules: `ping,nmap,http,whois,dns,subfinder,theharvester,oneforall,sudomy,amass,crobat,httpx,nuclei,nikto,directory`, or `all`. Duplicates are removed and modules run in dependency order. Directory testing still requires consent and a readable wordlist. Domain-only providers are skipped for IP targets.
+
+Proxychains uses your existing proxychains4 configuration. Routine initialization and successful chain messages are hidden from terminal stderr; errors remain visible or are retained in module logs. Nmap uses TCP connect scanning with host discovery and DNS resolution disabled in this mode. **Proxychains is not a guarantee of anonymity or complete traffic routing:** it intercepts supported dynamically linked TCP clients; ICMP, UDP, static binaries and tools using direct syscalls (including some Go tools) can bypass it. Use network-level routing if every module must be forced through a proxy. The option does not configure a proxy or start a proxy service.
+
+Each target’s scan creates its own `reports/combined-report.txt` (never a cross-target or scan-history bundle): the full normalized summary, findings, assets and recorded module text evidence/logs in one file. Failed or timed-out modules retain their partial evidence. Binary evidence stays in its original file and is identified in the combined report. Existing Markdown, JSON, CSV and per-tool reports remain available.

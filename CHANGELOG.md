@@ -68,3 +68,9 @@
 - Added clean HTTPS-to-HTTP fallback with raw diagnostics retained in logs.
 - Fixed theHarvester export filenames and Amass version-specific IP handling.
 - Added offline doctor checks, fixture/integration/signal tests, ShellCheck, GitHub CI and ignores for generated data and credentials.
+
+### Unreleased
+
+- Add Manual Recon menu and CLI module selection with validation and duplicate removal.
+- Add `--proxychains4` launcher, routine stderr filtering, explicit proxy coverage limitations and TCP-only Nmap settings in proxy mode.
+- Generate a combined text report with complete normalized findings and recorded raw text evidence, alongside existing reports.

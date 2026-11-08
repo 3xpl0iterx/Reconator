@@ -37,6 +37,9 @@ cli_nmap() {
     local -a flags=(-p "${cli_ports:-1-300}" -sV)
     [[ "$cli_nmap_mode" == fast ]] && flags=(-F -T4)
     [[ "$cli_nmap_mode" == aggressive ]] && flags=(-sVC)
+    if [[ "${RECONATOR_PROXY_MODE:-false}" == true ]]; then
+        flags=(-p "${cli_ports:-1-300}" -sT -Pn -n --unprivileged)
+    fi
     is_ip "$target" && [[ "$target" == *:* ]] && flags+=(-6)
     LC_ALL=C nmap "${flags[@]}" -oN "$scan_dir/nmap.txt" -oX "$scan_dir/nmap.xml" "$target"
 }
