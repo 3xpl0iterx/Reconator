@@ -8,5 +8,6 @@ python3 tests/test_packages.py
 python3 tests/test_python_runtime.py
 python3 tests/test_parsers.py
 python3 tests/test_cli.py
+python3 tests/test_proxy_stderr.py
 python3 tests/test_interrupt.py
 python3 tests/test_package.py
